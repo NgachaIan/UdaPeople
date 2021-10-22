@@ -252,6 +252,7 @@ jobs:
           name: Run migrations
           command: | 
             cd backend
+            cat .env
             sudo npm install
             npm audit fix --audit-level=critical --force
             npm run build
@@ -264,11 +265,14 @@ jobs:
             then
               curl -H "Content-Type: text/plain" -H "token: a2d26416-e9b8-4ee8-a3c2-35aeb1c9e382" --request PUT --data "1" https://api.memstash.io/values/migration_${CIRCLE_WORKFLOW_ID:0:7}
             fi
-            
+
       - persist_to_workspace:
           root: ~/project
           paths:
             - backend
+            
+      - destroy-environment:
+          workflow_id: "${CIRCLE_WORKFLOW_ID}"
 
      
      # Here's where you will add some code to rollback on failure
