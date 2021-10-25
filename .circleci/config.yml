@@ -255,7 +255,7 @@ jobs:
           name: Run migrations
           command: | 
             cd backend
-            npm audit fix --audit-level=critical
+            npm audit fix --audit-level=critical --force
             npm run migrations > migrations_dump.txt
 
       - run:
