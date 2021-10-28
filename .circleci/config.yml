@@ -342,19 +342,21 @@ jobs:
             apk update
             apk add --update ansible aws-cli openssh-client tar
 
-      # attach workspace
-      - run:
-          name: compress backend
-          command: |
-            # your code here
-            tar -C /tmp/artifacts/backend -czvf artifact.tar.gz .
+      
       - run:
           name: Deploy backend
           command: |
             # your code here
+            cd backend
+            npm i
+            npm run build
+            cd ..
+            # Zip the directory
+            tar -C backend -czvf artifact.tar.gz .
             cd .circleci/ansible
-            export ANSIBLE_HOST_KEY_CHECKING=False
-            ansible-playbook -i /tmp/artifacts/inventory.txt deploy-backend.yml
+            echo "Contents  of the inventory.txt file is -------"
+            cat inventory.txt
+            ansible-playbook -i inventory.txt deploy-backend.yml
       # Here's where you will add some code to rollback on failure  
       - destroy-environment:
           workflow_id: "${CIRCLE_WORKFLOW_ID}"
