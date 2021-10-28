@@ -322,22 +322,42 @@ jobs:
             aws s3 cp --recursive frontend/dist "s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7}"
       # Here's where you will add some code to rollback on failure      
                     
-#   deploy-backend:
-#     docker:
-#       # Docker image here that supports Ansible
-#     steps:
-#       # Checkout code from git
-#       # Add ssh keys with fingerprint
-#       # attach workspace
-#       - run:
-#           name: Install dependencies
-#           command: |
-#             # your code here
-#       - run:
-#           name: Deploy backend
-#           command: |
-#             # your code here
-#       # Here's where you will add some code to rollback on failure  
+  deploy-backend:
+    docker:
+      # Docker image here that supports Ansible
+      - image: python:3.9.1-alpine3.12
+    steps:
+      # Checkout code from git
+      - checkout
+      # Add ssh keys with fingerprint
+      - add_ssh_keys:
+          fingerprints: ['fe:e6:f7:ac:dd:f5:da:7e:50:c6:fd:47:bf:4e:35:27:6f:73:1c:ff']
+      - restore_cache:
+          key: backend-build
+      - attach_workspace:
+          at: /tmp/artifacts
+      - run:
+          name: Install dependencies
+          command: |
+            apk update
+            apk add --update ansible aws-cli openssh-client tar
+
+      # attach workspace
+      - run:
+          name: compress backend
+          command: |
+            # your code here
+            tar -C /tmp/artifacts/backend -czvf artifact.tar.gz .
+      - run:
+          name: Deploy backend
+          command: |
+            # your code here
+            cd .circleci/ansible
+            export ANSIBLE_HOST_KEY_CHECKING=False
+            ansible-playbook -i /tmp/artifacts/inventory.txt deploy-backend.yml
+      # Here's where you will add some code to rollback on failure  
+      - destroy-environment:
+          workflow_id: "${CIRCLE_WORKFLOW_ID}"
 
 #   smoke-test:
 #     docker:
@@ -425,8 +445,8 @@ workflows:
           requires: [configure-infrastructure]
       - deploy-frontend:
           requires: [run-migrations]
-      # - deploy-backend:
-      #     requires: [run-migrations]
+      - deploy-backend:
+          requires: [run-migrations]
       # - smoke-test:
       #     requires: [deploy-backend, deploy-frontend]
       # - cloudfront-update:
