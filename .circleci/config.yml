@@ -373,19 +373,18 @@ jobs:
             sudo apt update
             sudo apt install -y awscli
             sudo apt install -y python3 ansible
-    
-      - run:
-          name: Get backend url
-          command: |
-            curl -H "token: ${CIRCLE_WORKFLOW_ID}" \
-              --request GET https://api.memstash.io/values/backendurl \
-              > backend-url.txt
+     
       - run:
           name: Backend smoke test.
           command: |
-            url=$(cat backend-url.txt)
-            url="http://${url}:3030/api/status"
-            curl $url
+            export API_URL="http://${BACKEND_IP}:3030"
+            echo "${API_URL}"
+            if curl "${API_URL}/api/status" | grep "ok"
+            then
+                return 0
+            else
+                return 1
+            fi
       - run:
           name: Frontend smoke test.
           command: |
