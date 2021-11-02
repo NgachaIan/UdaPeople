@@ -378,7 +378,7 @@ jobs:
           name: Backend smoke test.
           command: |
             export BACKEND_URL="http://${BACKEND_IP}:3030"
-            echo http://${BACKEND_URL}:3030/api/status
+            echo http://:3030
             if 
               curl -s http://${BACKEND_URL}:3030/api/status | grep "ok"
             then
