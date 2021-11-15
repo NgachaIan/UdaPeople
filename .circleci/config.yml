@@ -352,8 +352,7 @@ jobs:
           name: Install dependencies
           command: |
             apk update
-            apk add --update ansible aws-cli openssh-client tar gzip curl nodejs npm
-
+            apk add --update ansible aws-cli openssh-client tar nodejs npm
       # attach workspace
 
       # - run:
