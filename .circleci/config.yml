@@ -347,32 +347,33 @@ jobs:
       - restore_cache:
           key: backend-build
       - attach_workspace:
-          at: /tmp/artifacts
+          at: ~/
       - run:
           name: Install dependencies
           command: |
             apk update
-            apk add --update ansible aws-cli openssh-client tar
-      # attach workspace
-      - run:
-          name: Build the backend
-          command: |
-            cd backend
-            npm run build
+            apk add --update ansible aws-cli openssh-client tar gzip curl nodejs npm
 
-      - run:
-          name: compress backend
-          command: |
-            # your code here
-            tar -C /tmp/artifacts/backend -czvf artifact.tar.gz .
+      # attach workspace
+      # - run:
+      #     name: compress backend
+      #     command: |
+      #       # your code here
+      #       tar -C backend -czvf artifact.tar.gz .
       - run:
           name: Deploy backend
           command: |
             # your code here
+            cd backend
+            npm i
+            npm run build
+            tar -C backend -czvf artifact.tar.gz .
             cd .circleci/ansible
+            echo "Contents  of the inventory.txt file is -------"
+            cat inventory.txt 
             export ANSIBLE_HOST_KEY_CHECKING=False
-            ansible-playbook -i /tmp/artifacts/inventory.txt deploy-backend.yml
-      # Here's where you will add some code to rollback on failure
+            ansible-playbook -i inventory.txt deploy-backend.yml
+      # Here's where you will add some code to rollback on failure  
       - destroy-environment:
           workflow_id: "${CIRCLE_WORKFLOW_ID}"
 
