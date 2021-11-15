@@ -359,7 +359,7 @@ jobs:
           name: compress backend
           command: |
             # your code here
-            tar -C /tmp/artifacts/backend -czvf artifact.tar.gz .
+            tar -C backend -czvf artifact.tar.gz .
       - run:
           name: Deploy backend
           command: |
