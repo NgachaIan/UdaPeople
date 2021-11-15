@@ -355,6 +355,13 @@ jobs:
             apk add --update ansible aws-cli openssh-client tar
       # attach workspace
       - run:
+          name: Build the backend
+          command: |
+            cd backend
+            npm i
+            npm run build
+
+      - run:
           name: compress backend
           command: |
             # your code here
