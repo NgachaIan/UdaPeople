@@ -337,44 +337,36 @@ jobs:
   deploy-backend:
     docker:
       # Docker image here that supports Ansible
-      - image: python:3.7-alpine3.11
+      - image: python:3.9.1-alpine3.12
     steps:
       # Checkout code from git
       - checkout
       # Add ssh keys with fingerprint
       - add_ssh_keys:
-          fingerprints: ['fe:e6:f7:ac:dd:f5:da:7e:50:c6:fd:47:bf:4e:35:27:6f:73:1c:ff'] 
-      - attach_workspace:
-          at: ~/
-      - attach_workspace:
-          at: /tmp/workspace
+          fingerprints: ['fe:e6:f7:ac:dd:f5:da:7e:50:c6:fd:47:bf:4e:35:27:6f:73:1c:ff']
       - restore_cache:
           key: backend-build
+      - attach_workspace:
+          at: /tmp/artifacts
       - run:
           name: Install dependencies
           command: |
-            apk add --update ansible openssh-client tar gzip curl nodejs npm
-            pip3 install awscli
+            apk update
+            apk add --update ansible aws-cli openssh-client tar
 
       # attach workspace
       - run:
           name: compress backend
           command: |
             # your code here
-            tar -C backend -czvf artifact.tar.gz .
+            tar -C /tmp/artifacts/backend -czvf artifact.tar.gz .
       - run:
           name: Deploy backend
           command: |
             # your code here
-            cd backend
-            npm i
-            npm run build
-            cd ..
             cd .circleci/ansible
-            echo "Contents of the inventory.txt file is ...."
-            cat inventory.txt
             export ANSIBLE_HOST_KEY_CHECKING=False
-            ansible-playbook -i inventory.txt deploy-backend.yml
+            ansible-playbook -i /tmp/artifacts/inventory.txt deploy-backend.yml
       # Here's where you will add some code to rollback on failure  
       - destroy-environment:
           workflow_id: "${CIRCLE_WORKFLOW_ID}"
@@ -382,15 +374,17 @@ jobs:
   smoke-test:
     docker:
       # Lightweight Docker image 
-      - image: python:3.7-alpine3.11
+      - image: circleci/node:13.8.0
     steps:
       # Checkout code from git
       - checkout
       - run:
           name: Install dependencies
           command: |
-            pip install awscli
-            apk add --update curl nodejs npm
+            # your code here
+            sudo apt update
+            sudo apt install -y awscli
+            sudo apt install -y python3 ansible
      
       - run:
           name: Backend smoke test
