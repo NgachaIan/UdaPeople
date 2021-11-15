@@ -348,13 +348,12 @@ jobs:
           key: backend-build
       - attach_workspace:
           at: ~/
-      - attach_workspace:
-          at: /tmp/workspace
       - run:
           name: Install dependencies
           command: |
             apk update
-            apk add --update ansible aws-cli openssh-client tar nodejs npm
+            apk add --update ansible openssh-client tar nodejs npm
+            pip install awscli
       # attach workspace
 
       # - run:
