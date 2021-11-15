@@ -356,6 +356,15 @@ jobs:
 
       # attach workspace
       - run:
+          name: Build Backend Files
+          command: |
+            cd backend
+            npm i
+            npm run build
+            cp package* ./dist
+            cd ..
+            
+      - run:
           name: compress backend
           command: |
             # your code here
