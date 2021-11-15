@@ -358,7 +358,6 @@ jobs:
           name: Build the backend
           command: |
             cd backend
-            npm i
             npm run build
 
       - run:
