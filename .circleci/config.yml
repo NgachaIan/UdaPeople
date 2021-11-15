@@ -346,8 +346,6 @@ jobs:
           fingerprints: ['fe:e6:f7:ac:dd:f5:da:7e:50:c6:fd:47:bf:4e:35:27:6f:73:1c:ff']
       - attach_workspace:
           at: ~/
-      - attach_workspace:
-          at: /tmp/workspace
       - restore_cache:
           key: backend-build
       - run:
