@@ -344,40 +344,88 @@ jobs:
       # Add ssh keys with fingerprint
       - add_ssh_keys:
           fingerprints: ['fe:e6:f7:ac:dd:f5:da:7e:50:c6:fd:47:bf:4e:35:27:6f:73:1c:ff']
-      - restore_cache:
-          key: backend-build
-      - attach_workspace:
-          at: ~/
-      - run:
-          name: Install dependencies
-          command: |
-            apk update
-            apk add --update ansible openssh-client tar nodejs npm
-            pip install awscli
-      # attach workspace
-
+      # - restore_cache:
+      #     key: backend-build
+      # - attach_workspace:
+      #     at: ~/
       # - run:
-      #     name: compress backend
+      #     name: Install dependencies
+      #     command: |
+      #       apk update
+      #       apk add --update ansible openssh-client tar nodejs npm
+      #       pip install awscli
+      # # attach workspace
+
+      # # - run:
+      # #     name: compress backend
+      # #     command: |
+      # #       # your code here
+      # #       tar -C backend -czvf artifact.tar.gz .
+      # - run:
+      #     name: Deploy backend
       #     command: |
       #       # your code here
+      #       cd backend
+      #       npm i
+      #       npm run build
+      #       cd ..
       #       tar -C backend -czvf artifact.tar.gz .
+      #       cd .circleci/ansible
+      #       echo "Contents  of the inventory.txt file is -------"
+      #       cat inventory.txt
+      #       export ANSIBLE_HOST_KEY_CHECKING=False
+      #       ansible-playbook -i inventory.txt deploy-backend.yml
+      # # Here's where you will add some code to rollback on failure  
+      # # - destroy-environment:
+      # #     workflow_id: "${CIRCLE_WORKFLOW_ID}"
+      # attach workspace
+      - attach_workspace:
+          at: ~/
+
+      - run:
+          name: Install dependencies
+          command: |  
+            pip install --upgrade pip
+            pip install awscli
+            apk add --update nodejs npm ansible zip
+      
+            # your code here
       - run:
           name: Deploy backend
           command: |
-            # your code here
-            cd backend
-            npm i
-            npm run build
-            cd ..
-            tar -C backend -czvf artifact.tar.gz .
-            cd .circleci/ansible
-            echo "Contents  of the inventory.txt file is -------"
-            cat inventory.txt
-            export ANSIBLE_HOST_KEY_CHECKING=False
-            ansible-playbook -i inventory.txt deploy-backend.yml
-      # Here's where you will add some code to rollback on failure  
-      # - destroy-environment:
-      #     workflow_id: "${CIRCLE_WORKFLOW_ID}"
+              cd backend
+              apk add --update nodejs-npm
+              apk add --update npm
+              npm install
+              npm run build
+              echo build successful
+      - run:
+          name: Configure server
+          command: |
+              echo ENVIROMENT=production > "backend/dist/.env"
+              echo TYPEORM_CONNECTION=postgres >> "backend/dist/.env"
+              echo TYPEORM_ENTITIES=./modules/domain/**/*.entity{.ts,.js} >> "backend/dist/.env"
+              echo TYPEORM_HOST=$TYPEORM_HOST >> "backend/dist/.env"
+              echo TYPEORM_PORT=$TYPEORM_PORT >> "backend/dist/.env"
+              echo TYPEORM_USERNAME=$TYPEORM_USERNAME >> "backend/dist/.env"
+              echo TYPEORM_MIGRATIONS=$TYPEORM_MIGRATIONS >> "backend/dist/.env"
+              echo TYPEORM_MIGRATIONS_DIR=$TYPEORM_MIGRATIONS_DIR >> "backend/dist/.env"
+              echo TYPEORM_PASSWORD=$TYPEORM_PASSWORD >> "backend/dist/.env"
+              echo TYPEORM_DATABASE=$TYPEORM_DATABASE >> "backend/dist/.env"
+          
+      - run:
+          name: Configure server
+          command: |    
+              cd /root/project/backend/dist
+              tar czf dist.tar.gz .
+              mkdir -p ~/project/.circleci/ansible/roles/deploy/files/
+              mv dist.tar.gz ~/project/.circleci/ansible/roles/deploy/files/
+              cd /root/project/backend/node_modules
+              tar czf node_modules.tar.gz .
+              mv node_modules.tar.gz ~/project/.circleci/ansible/roles/deploy/files/
+              pwd
+              cd /root/project/.circleci/ansible
+              ansible-playbook deploy-backend.yml -i inventory.txt 
 
   smoke-test:
     docker:
