@@ -15,9 +15,9 @@ commands:
           when: on_fail
           command: |
             # Your code here
-            if aws s3 ls | grep udapeople-<<parameters.workflow_id>>; then
-              aws s3 rm s3://udapeople-<<parameters.workflow_id>> --recursive
-            fi
+          
+            aws s3 rm s3://udapeople-<<parameters.workflow_id>> --recursive
+            
             aws cloudformation delete-stack --stack-name frontend-<<parameters.workflow_id>>
             aws cloudformation delete-stack --stack-name backend-<<parameters.workflow_id>>
             
