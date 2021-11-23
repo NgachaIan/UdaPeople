@@ -1,7 +1,8 @@
 version: 2.1
 orbs:
-  aws-cli: circleci/aws-cli@1.3.0
-
+  aws-cli: circleci/aws-cli@2.0.3
+  node: circleci/node@3.0.0
+  
 commands:
   destroy-environment:
     description: Destroy back-end and front-end cloudformation stacks given a workflow ID.
@@ -170,13 +171,19 @@ jobs:
       - run:
           name: Add back-end ip to ansible inventory
           command: |
-            # Your code here
-            echo "[web]" > .circleci/ansible/inventory.txt
             aws ec2 describe-instances \
-              --query 'Reservations[*].Instances[*].PublicIpAddress' \
-              --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
-              --output text >> .circleci/ansible/inventory.txt
-              cat .circleci/ansible/inventory.txt
+            --query 'Reservations[*].Instances[*].PublicIpAddress' \
+            --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+            --output text >> ~/project/.circleci/ansible/inventory.txt
+            cat .circleci/ansible/inventory.txt
+
+            curl -H "Content-Type: text/plain" -H "token: ${CIRCLE_WORKFLOW_ID}" \
+                --request PUT \
+                --data `aws ec2 describe-instances \
+                  --query 'Reservations[*].Instances[*].PublicIpAddress' \
+                  --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+                  --output text` \
+                https://api.memstash.io/values/backendip
             
               
       - persist_to_workspace:
@@ -203,8 +210,10 @@ jobs:
       - run:
           name: Install dependencies
           command: |
-            apk add --update ansible
-            cat .circleci/ansible/inventory.txt        
+            apk add --update ansible openssh-client
+            apk add --update tar gzip ansible nodejs npm curl
+            pip install awscli
+
       - run:
           name: Configure server
           command: |
@@ -222,11 +231,8 @@ jobs:
             
               cd .circleci/ansible
               ansible-playbook -i inventory.txt configure-server.yml
-      - run:
-          name: Install AWS CLI for rollback
-          when: on_fail
-          command: |
-              apk add --update py3-pip && pip3 install --upgrade pip && pip3 install awscli       
+      - destroy-environment:
+          workflow_id: "${CIRCLE_WORKFLOW_ID}"   
       # Here's where you will add some code to rollback on failure      
 
   run-migrations:
@@ -289,7 +295,7 @@ jobs:
   deploy-frontend:
     docker:
       # Docker image here that supports AWS CLI
-      - image: circleci/node:13.8.0
+      - image: python:3.7-alpine3.11 
     steps:
       # Checkout code from git
       - checkout
@@ -297,13 +303,9 @@ jobs:
           at: ~/
       - run:
           name: Install AWS CLI dependencies
-          working_directory: /tmp
           command: |
-            sudo apt-get update && sudo apt-get install -yy less
-            sudo apt-get install unzip -y
-            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-            unzip awscliv2.zip
-            sudo ./aws/install
+            apk add --update tar gzip ansible nodejs npm curl
+            pip install awscli
       - run:
           name: Install dependencies
           command: |
@@ -312,35 +314,47 @@ jobs:
       - run:
           name: Get backend url
           command: |
-            # your code here
-            BACKEND_IP=$(aws ec2 describe-instances \
-              --query 'Reservations[*].Instances[*].PublicIpAddress' \
-              --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" ) 
+          
+            # BACKEND_IP=$(aws ec2 describe-instances \
+            #   --query 'Reservations[*].Instances[*].PublicIpAddress' \
+            #   --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" ) 
                 
+            # export API_URL="http://${BACKEND_IP}:3030"
+            # echo ENVIRONMENT=production > "frontend/.env"
+            # echo NODE_ENV=production >> "frontend/.env"
+            # echo API_URL=$API_URL >> "frontend/.env"
+            # echo $API_URL
+            BACKEND_IP=$(curl -H "token: ${CIRCLE_WORKFLOW_ID}" \
+              --request GET https://api.memstash.io/values/backendip)
+
             export API_URL="http://${BACKEND_IP}:3030"
+
+            
             echo ENVIRONMENT=production > "frontend/.env"
             echo NODE_ENV=production >> "frontend/.env"
             echo API_URL=$API_URL >> "frontend/.env"
-            echo $API_URL
-      - run:
-          name: Build frontend
-          command: |
-            cd frontend
-            ls -la
-            cat .env
-            npm run build
-      - aws-cli/setup
+           
+            echo "${API_URL}"
+
       - run:
           name: Deploy frontend objects
           command: |
-            # your code here
-            aws s3 cp --recursive frontend/dist "s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7}"
-      # Here's where you will add some code to rollback on failure      
+            echo ENVIRONMENT=production >> frontend/.env
+            echo NODE_ENV=production >> frontend/.env
+            cd frontend
+            npm audit fix --audit-level=critical 
+            npm install
+            npm run build
+            tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:5}".tar.gz dist
+            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:5} --recursive
+      # Here's where you will add some code to rollback on failure  
+      - destroy-environment:
+          workflow_id: "${CIRCLE_WORKFLOW_ID}"    
                     
   deploy-backend:
     docker:
       # Docker image here that supports Ansible
-      - image: python:3.9.1-alpine3.12
+      - image: python:3.7-alpine3.11 
     steps:
       # Checkout code from git
       - checkout
@@ -367,10 +381,22 @@ jobs:
       - run:
           name: Deploy backend
           command: |
-            # your code here
+            echo ENVIRONMENT=production >> "backend/.env"
+            echo TYPEORM_CONNECTION=postgres >> "backend/.env"
+            echo TYPEORM_MIGRATIONS_DIR=./src/migrations >> "backend/.env"
+            echo TYPEORM_ENTITIES=./src/modules/domain/**/*.entity.ts >> "backend/.env"
+            echo TYPEORM_MIGRATIONS=./src/migrations/*.ts >> "backend/.env"
+            echo TYPEORM_HOST=$TYPEORM_HOST >> "backend/.env"
+            echo TYPEORM_PORT=$TYPEORM_PORT >> "backend/.env"
+            echo TYPEORM_USERNAME=$TYPEORM_USERNAME >> "backend/.env"
+            echo TYPEORM_PASSWORD=$TYPEORM_PASSWORD >> "backend/.env"
+            echo TYPEORM_DATABASE=$TYPEORM_DATABASE >> "backend/.env"
+            cat backend/.env
+
             tar -C backend -czvf artifact.tar.gz .
+            ls -la
+
             cd .circleci/ansible
-            echo "Contents  of the inventory.txt file is -------"
             cat inventory.txt
             export ANSIBLE_HOST_KEY_CHECKING=False
             ansible-playbook -i inventory.txt deploy-backend.yml
@@ -381,25 +407,24 @@ jobs:
   smoke-test:
     docker:
       # Lightweight Docker image 
-      - image: circleci/node:13.8.0
+      - image: python:3.7-alpine3.11 
     steps:
       # Checkout code from git
       - checkout
+      - attach_workspace:
+          at: ~/
       - run:
           name: Install dependencies
           command: |
-            # your code here
-            sudo apt update
-            sudo apt install -y awscli
-            sudo apt install -y python3 ansible
+            pip install awscli
+            apk add --update curl nodejs npm
      
       - run:
           name: Backend smoke test
           command: |
-            BACKEND_IP=$(aws ec2 describe-instances --region us-east-1  \
-                --filters "Name=tag:Name, Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
-                --query "Reservations[].Instances[*].PublicIpAddress" \
-                --output text)
+            BACKEND_IP=$(curl -H "token: ${CIRCLE_WORKFLOW_ID}" \
+              --request GET https://api.memstash.io/values/backendip)
+
             export BACKEND_STATUS="http://${BACKEND_IP}:3030/api/status"
             echo ${BACKEND_STATUS}
             curl "http://${BACKEND_IP}:3030/api/status"
